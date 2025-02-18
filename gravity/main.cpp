@@ -4,11 +4,6 @@
 #include <iomanip>
 int main();
 
-void restart()
-{
-
-
-}
 
 class GravitySource
 {
