@@ -1,12 +1,6 @@
 #include <SFML/Graphics.hpp>
 
 using namespace std;
-class Planet {
-public:
-	sf::Vector2f position;
-	sf::Vector2f velocity;
-	float mass;
-	float radius;
 
 	Planet(sf::Vector2f position, sf::Vector2f velocity, float mass, float radius) {
 		this->position = position;
