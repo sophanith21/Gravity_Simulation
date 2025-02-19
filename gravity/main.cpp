@@ -2,7 +2,6 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
-int main();
 
 
 class GravitySource
@@ -10,23 +9,69 @@ class GravitySource
 	sf::Vector2f pos;
 	float strength;
 	sf::CircleShape s;
+	bool drag;
+	bool outlineDrag;
+	bool press;
+	sf::CircleShape resize;
+	float oldDistance;
+	float newDistance;
+
 
 public:
-	GravitySource(float pos_x, float pos_y, float strength)
+	GravitySource(float pos_x, float pos_y)
 	{
 		pos.x = pos_x;
 		pos.y = pos_y;
-		this->strength = strength;
+		strength = 0;
+
 		s.setPosition(pos);
 		s.setFillColor(sf::Color::White);
 		s.setRadius(20);
 		s.setOrigin(s.getRadius(), s.getRadius());
+
+		resize.setPosition(pos);
+		resize.setFillColor(sf::Color::Transparent);
+		resize.setOutlineColor(sf::Color::White);
+		resize.setOutlineThickness(-3);
+		resize.setRadius(s.getRadius() * 2);
+		resize.setOrigin(resize.getRadius(), resize.getRadius());
+
+		outlineDrag = false;
+		drag = false;
+		press = false;
+		oldDistance = newDistance = 0;
 	}
 
 	void render(sf::RenderWindow& wind)
 	{
 		wind.draw(s);
 	}
+
+	void renderOutline(sf::RenderWindow& wind)
+	{
+		wind.draw(resize);
+	}
+
+	void setOutlineDrag(bool outlineDrag)
+	{
+		this->outlineDrag = outlineDrag;
+	}
+
+	bool isOutlineDrag()
+	{
+		return outlineDrag;
+	}
+
+	void setPressed(bool press)
+	{
+		this->press = press;
+	}
+
+	bool isPressed()
+	{
+		return press;
+	}
+
 	sf::Vector2f get_pos()
 	{
 		return pos;
@@ -37,9 +82,10 @@ public:
 		return strength;
 	}
 
-	void set_strength(float value)
+	void set_strength()
 	{
-		strength = value;
+		float k = 2.0f; // Adjust this value as needed
+		strength = k * (s.getRadius() * s.getRadius());
 	}
 	
 	void set_pos()
@@ -51,6 +97,56 @@ public:
 	{
 		return &s;
 	}
+
+	sf::CircleShape* getOutline()
+	{
+		return &resize;
+	}
+
+	void setDrag(bool isDragged)
+	{
+		this->drag = isDragged;
+	}
+	bool isDragged()
+	{
+		return drag;
+	}
+
+	void updateOldDistance(float distance)
+	{
+		oldDistance = distance;
+	}
+	float getOldDistance()
+	{
+		return oldDistance;
+	}
+
+	void updateNewDistance(float distance)
+	{
+		newDistance = distance;
+	}
+	float getNewDistance()
+	{
+		return newDistance;
+	}
+
+	void updateRadius(float distance)
+	{
+
+		float minRadius = 5.0f;  // Prevents the ring from disappearing
+		float maxRadius = 300.0f; // Optional: Prevents excessive size
+
+		float newRadius = s.getRadius() + distance;
+		newRadius = std::max(minRadius, std::min(maxRadius, newRadius)); // Keep radius within bounds
+
+		s.setRadius(newRadius);
+		s.setOrigin(newRadius, newRadius); // Adjust origin to stay centered
+
+		resize.setRadius(newRadius*2);
+		resize.setOrigin(newRadius*2, newRadius*2); // Keep resize handle centered
+	}
+
+	
 };
 
 class Particle
@@ -151,14 +247,9 @@ int main()
 	
 
 	std::vector <GravitySource> sources;
-	sources.push_back(GravitySource(1000, 500, 7000));
-	sources.push_back(GravitySource(700, 500, 7000));
-	std::vector <bool> isDragging;
-	for (int i = 0; i < sources.size(); i++)
-	{
-		bool isDragging1 = false;
-		isDragging.push_back(isDragging1);
-	}
+	sources.push_back(GravitySource(1000, 500));
+	sources.push_back(GravitySource(700, 500));
+
 	int num_particle = 2000;
 
 	std::vector <Particle> particles;
@@ -181,16 +272,11 @@ int main()
 	fps.setCharacterSize(23);
 	fps.setPosition(0, 100);
 	
-
-	Text input;
-	input.setFont(arial);
-	input.setCharacterSize(23);
 	
 
 	Text dis;
 	dis.setFont(arial);
 	dis.setCharacterSize(23);
-	dis.setPosition(0, 22);
 
 	std::string temp_text = "The system has been paused";
 	Text pause_dis;
@@ -201,10 +287,8 @@ int main()
 	pause_dis.setPosition(window.getSize().x / 2 - 100, window.getSize().y - 100);
 	std::string userInput;
 
-	float value = 0.f;
-
 	Text menu;
-	menu.setString("Hold or tap left click to spawn a particle (s)\nPress Space to Pause\nType Numbers and Press Enter to change the strength of gravity\nPress N to enable \"Spawn Particle\"");
+	menu.setString("Hold or tap left click to spawn a particle (s)\nPress Space to Pause\nType Numbers and Press Enter to change the strength of gravity\nPress N to enable \"Spawn Particle\"\nClick on the white Circle to resize (Drag the appeared Circle Ring to resize)");
 	menu.setFont(arial);
 	menu.setCharacterSize(22);
 	menu.setPosition(0, 300);
@@ -226,25 +310,7 @@ int main()
 				frameCount = 0;
 				elapsedTime = 0.0f;
 			}
-			if (event.type == event.TextEntered)
-			{
-				if (event.text.unicode < 128)
-				{
-					char typedText = static_cast<char>(event.text.unicode);
-					if (typedText == '\b' && !userInput.empty())
-					{
-						userInput.pop_back();
-					}
-					else if (std::isdigit(typedText))
-					{
-						userInput.push_back(typedText);
-					}
-					if (!userInput.empty())
-					{
-						value = stof(userInput);
-					}
-				}
-			}
+		
 			if (event.type == event.KeyPressed)
 			{
 				if (event.key.code == Keyboard::Escape)
@@ -288,19 +354,62 @@ int main()
 					}
 				}
 			}
+			float radius;
+			Vector2f mouseCoordinate;
+			Vector2f distance_xy;
+			float distance;
+			float innerRadius;
+			if (!isSpawn)
+			{
+				for (int i = 0; i < sources.size(); i++)
+				{
+					radius = sources[i].getOutline()->getRadius();
+					mouseCoordinate = window.mapPixelToCoords(Mouse::getPosition(window));
+					distance_xy = Vector2f(sources[i].getOutline()->getPosition().x - mouseCoordinate.x, sources[i].getOutline()->getPosition().y - mouseCoordinate.y);
+					distance = sqrt(pow(distance_xy.x, 2) + pow(distance_xy.y, 2));
+					innerRadius = radius - std::abs(sources[i].getOutline()->getOutlineThickness());
+
+					if (!sources[i].isOutlineDrag())
+					{
+						sources[i].updateOldDistance(distance);
+					}
+
+					if (distance <= (radius + 10) && distance >= (innerRadius - 10) && sources[i].isPressed() && event.mouseButton.button == Mouse::Left)
+					{
+						sources[i].setOutlineDrag(true);
+					}
+
+					if (sources[i].isOutlineDrag())
+					{
+						sources[i].updateNewDistance(distance);
+					}
+				}
+
+			}
+			
 			if (event.type == event.MouseButtonPressed && !isSpawn)
 			{
+				
 				if (event.mouseButton.button == Mouse::Left)
 				{
 					for (int i = 0; i < sources.size(); i++)
 					{
 						if (sources[i].getShape()->getGlobalBounds().contains(Vector2f(Mouse::getPosition(window))))
 						{
-							isDragging[i] = true;
+							if (sources[i].isPressed())
+							{
+								sources[i].setPressed(false);
+							}
+							else
+							{
+								sources[i].setPressed(true);
+							}
+							sources[i].setDrag(true);
 							break;
 						}
 					}
 				}
+				
 			}
 			if(event.type == event.MouseButtonReleased && !isSpawn)
 			{
@@ -308,7 +417,9 @@ int main()
 				{
 					for (int i = 0; i < sources.size(); i++)
 					{
-						isDragging[i] = false;
+						
+						sources[i].setDrag(false);
+						sources[i].setOutlineDrag(false);
 					}
 					
 				}
@@ -339,30 +450,6 @@ int main()
 				particles[i].update_physic(sources[1]);
 			}
 		}
-
-		if (!isSpawn)
-		{
-			for (int i = 0; i < sources.size(); i++)
-			{
-				if (isDragging[i] && !isSpawn)
-				{
-					sources[i].getShape()->setPosition((Vector2f)Mouse::getPosition(window));
-					sources[i].set_pos();
-				}
-			}
-		}
-		input.setString("Input: " + std::to_string(value));
-		if (Keyboard::isKeyPressed(Keyboard::Enter))
-		{
-			sources[0].set_strength(value);
-			sources[1].set_strength(value);
-		}
-
-		dis.setString("Value: " + std::to_string(sources[0].get_strength()) + "\n" +
-			"Particles: " + std::to_string(particles.size()) + "\n" +
-			"Press m for more info");
-
-		//Draw
 		if (pause)
 		{
 			window.clear();
@@ -372,6 +459,49 @@ int main()
 		{
 			window.clear();
 		}
+
+		if (!isSpawn)
+		{
+			for (int i = 0; i < sources.size(); i++)
+			{
+				if (sources[i].isDragged())
+				{
+					sources[i].getShape()->setPosition((Vector2f)Mouse::getPosition(window));
+					sources[i].getOutline()->setPosition((Vector2f)Mouse::getPosition(window));
+					sources[i].set_pos();
+				}
+				if (sources[i].isPressed() && !sources[i].isDragged())
+				{
+					if (sources[i].isOutlineDrag())
+					{
+						sources[i].getOutline()->setOutlineColor(Color::Yellow);
+						sources[i].updateRadius(sources[i].getNewDistance() - sources[i].getOldDistance());
+						sources[i].updateOldDistance(sources[i].getNewDistance());
+						
+					}
+					else
+					{
+						sources[i].getOutline()->setOutlineColor(Color::White);
+					}
+					sources[i].renderOutline(window);
+				}
+
+				
+			}
+		}
+
+		sources[0].set_strength();
+		sources[1].set_strength();
+		dis.setString("Gravity Stregnth [1]: " + std::to_string(sources[0].get_strength()) + "\n" +
+			"Gravity Strength [2]: " + std::to_string(sources[1].get_strength()) + "\n" +
+			"Particles: " + std::to_string(particles.size()) + "\n" +
+			"Press m for more info");
+			/*"New Distance: " + std::to_string(sources[0].getNewDistance()) + "\n" +
+			"Old Distaace: " + std::to_string(sources[0].getOldDistance()) + "\n" + 
+			"Distnace: " + std::to_string(sources[0].getNewDistance() - sources[0].getOldDistance()));*/
+
+		//Draw
+		
 		for (size_t i = 0; i < particles.size(); i++)
 		{
 			particles[i].render(window);
@@ -382,7 +512,6 @@ int main()
 		{
 			window.draw(menu);
 		}
-		window.draw(input);
 		window.draw(dis);
 
 		sources[0].render(window);
